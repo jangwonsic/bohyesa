@@ -1,44 +1,59 @@
-// 간단한 캐시형 서비스워커 예시 — 경로는 모두 상대경로('./')로 사용합니다.
-const CACHE_NAME = 'bohyesa-v1';
-const ASSETS = [
-  './index.html',
-  './index.css',
-  './index.tsx',
-  './sw.js',
-  './manifest.json',
-  // 필요하면 여기에 추가 자원(이미지, 오디오 등) 목록을 넣으세요.
+
+const CACHE_NAME = 'heavenly-secrets-v14';
+const ASSETS_TO_PRECACHE = [
+  './',
+  'index.html',
+  'manifest.json',
+  'https://cdn.tailwindcss.com'
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
-  );
   self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(ASSETS_TO_PRECACHE);
+    })
+  );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.map((key) => key !== CACHE_NAME ? caches.delete(key) : Promise.resolve()))
-    )
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.filter(name => name !== CACHE_NAME).map(name => caches.delete(name))
+      );
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+  
+  const url = new URL(event.request.url);
+  const isInternal = url.origin === self.location.origin;
+  const isCDN = url.hostname.includes('cdn.tailwindcss.com') || 
+                url.hostname.includes('fonts.googleapis.com') ||
+                url.hostname.includes('img.icons8.com');
+  
+  if (!isInternal && !isCDN) return;
+
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((res) => {
-        // 네트워크 응답을 캐시에 저장 (선택 사항)
-        return caches.open(CACHE_NAME).then((cache) => {
-          // 캐시 가능한 응답만 저장
-          if (event.request.method === 'GET' && res && res.status === 200 && res.type === 'basic') {
-            cache.put(event.request, res.clone());
-          }
-          return res;
-        });
-      }).catch(() => caches.match('./index.html')); // 오프라인에서 SPA fallback
+    caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
+      const fetchPromise = fetch(event.request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      }).catch(() => {
+        if (event.request.mode === 'navigate') {
+          return caches.match('./') || caches.match('index.html');
+        }
+      });
+
+      return cachedResponse || fetchPromise;
     })
   );
 });
