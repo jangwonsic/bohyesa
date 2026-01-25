@@ -3,7 +3,7 @@
   "name": "천국의 비밀 계시",
   "short_name": "천국의비밀",
   "description": "가려진 성경의 비밀, 보혜사의 손길로 그 베일을 벗깁니다",
-  "start_url": "/",
+  "start_url": "./",
   "scope": "/",
   "display": "standalone",
   "background_color": "#111621",
